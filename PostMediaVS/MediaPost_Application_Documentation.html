@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>MediaPost Application Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }
+        h1 { color: #333; border-bottom: 2px solid #333; }
+        h2 { color: #666; border-bottom: 1px solid #666; }
+        h3 { color: #999; }
+        code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+        pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        ul, ol { margin-left: 20px; }
+        li { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+<h1>MediaPost Application - Complete Flow Documentation</h1>
+<h2>1. Post Creation with Media Upload Flow</h2>
+<p><strong>API Endpoint:</strong> <code>POST /api/posts/upload</code></p>
+<p><strong>Flow Sequence:</strong>
+1. <strong>Controller Layer</strong> (<code>PostController.java:23-31</code>)
+   - Receives multipart form data: caption, file, userId
+   - Calls <code>postService.createPost()</code></p>
+<ol>
+<li><strong>Service Layer</strong> (<code>PostServiceImpl.java:34-49</code>)</li>
+<li>Fetches user via <code>userService.getById(userId)</code></li>
+<li>Uploads file via <code>storageService.upload(file)</code></li>
+<li>Determines media type (video/image) based on content type</li>
+<li>Creates Post entity with caption, media URL, media type, and author</li>
+<li>Saves post to database via <code>postRepository.save()</code></li>
+<li>
+<p>Maps entity to DTO response</p>
+</li>
+<li>
+<p><strong>Storage Layer</strong> (<code>StorageServiceImpl.java:22-26</code>)</p>
+</li>
+<li>Generates unique filename with timestamp prefix</li>
+<li>Saves file to local filesystem</li>
+</ol>
+<h2>2. User Registration System</h2>
+<p><strong>API Endpoint:</strong> <code>POST /api/users/create</code></p>
+<p><strong>Flow Sequence:</strong>
+1. <strong>Controller Layer</strong> (<code>UserController.java:21-23</code>)
+   - Receives User entity in request body
+   - Calls <code>userService.createUser()</code>
+   - Returns HTTP 201 Created with saved user</p>
+<ol>
+<li><strong>Service Layer</strong> (<code>UserServiceImpl.java:22-23</code>)</li>
+<li>Direct save to database via <code>userRepository.save()</code></li>
+</ol>
+<h2>3. Comment System Implementation</h2>
+<p><strong>API Endpoints:</strong>
+- <code>POST /api/comments/add</code> - Add comment
+- <code>GET /api/comments/post/{postId}</code> - Get comments by post</p>
+<p><strong>Add Comment Flow:</strong>
+1. <strong>Controller Layer</strong> (<code>CommentController.java:27-33</code>)
+   - Receives userId, postId, text as request parameters
+   - Calls <code>commentServiceImpl.addComment()</code></p>
+<ol>
+<li><strong>Service Layer</strong> (<code>CommentServiceImpl.java:28-37</code>)</li>
+<li>Creates Comment entity with text, user reference, and post reference</li>
+<li>Saves comment via <code>commentRepository.save()</code></li>
+<li>Increments post comment count via <code>postService.incrementComment()</code></li>
+</ol>
+<h2>4. Like/Unlike Interaction System</h2>
+<p><strong>API Endpoint:</strong> <code>POST /api/Interactions/posts/{postId}/like</code></p>
+<p><strong>Flow Sequence:</strong>
+1. <strong>Controller Layer</strong> (<code>InteractionController.java:18-24</code>)
+   - Receives postId and userId as path variables
+   - Calls <code>interactionService.toggleLike()</code></p>
+<ol>
+<li><strong>Service Layer</strong> (<code>InteractionServiceImpl.java:25-38</code>)</li>
+<li>Checks for existing like via <code>interactionRepository.findByUserIdAndPostIdAndType()</code></li>
+<li><strong>If like exists:</strong> Deletes interaction and decrements post like count</li>
+<li><strong>If no like:</strong> Creates new Interaction entity, saves it, and increments post like count</li>
+</ol>
+<h2>5. Feed Retrieval System</h2>
+<p><strong>API Endpoint:</strong> <code>GET /api/posts/feed</code> (implied from service method)</p>
+<p><strong>Flow Sequence:</strong>
+1. <strong>Service Layer</strong> (<code>PostServiceImpl.java:53-56</code>)
+   - Fetches paginated posts ordered by creation date descending
+   - Maps each Post entity to PostResponseDTO</p>
+<ol>
+<li><strong>DTO Transformation</strong> (<code>PostServiceImpl.java:66-75</code>)</li>
+<li>Uses ModelMapper for basic field mapping</li>
+<li>Constructs full media URL: <code>"http://localhost:8080/media/" + post.getMediaUrl()</code></li>
+<li>Sets author name from post author's username</li>
+</ol>
+<h2>Key Technical Details</h2>
+<p><strong>Counter Updates:</strong>
+- Like counts updated atomically in <code>incrementLikes()</code> and <code>decrementLikes()</code>
+- Comment counts updated in <code>incrementComment()</code>
+- All counter operations include safety checks (e.g., preventing negative like counts)</p>
+<p><strong>Media Handling:</strong>
+- Files stored with timestamp-based unique names
+- Media type determined from content type string
+- Static media serving from <code>/media/*</code> endpoint</p>
+<p><strong>Entity Relationships:</strong>
+- User → Post (one-to-many)
+- Post → Comment (one-to-many)
+- User → Post → Interaction (many-to-many through Interaction entity)</p>
+<p><strong>Error Handling:</strong>
+- Post not found throws <code>RuntimeException</code>
+- File empty validation in storage service
+- Basic validation for counter operations</p>
+<h2>Architecture Overview</h2>
+<p>The application follows standard Spring Boot architecture with clear separation of concerns across controller, service, and repository layers.</p>
+<p><strong>Technology Stack:</strong>
+- Spring Boot
+- Spring Data JPA
+- Spring Web (REST APIs)
+- ModelMapper for DTO mapping
+- Lombok for boilerplate reduction
+- Jakarta EE (formerly Java EE)</p>
+<p><strong>Database Operations:</strong>
+- All operations use JPA repositories
+- Transactional management with <code>@Transactional</code>
+- Entity references managed via EntityManager</p>
+<p><strong>API Design:</strong>
+- RESTful endpoints following HTTP standards
+- Proper HTTP status codes
+- Multipart support for file uploads
+- Pagination support for feed retrieval</p>
+</body>
+</html>
